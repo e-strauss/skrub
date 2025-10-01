@@ -24,6 +24,7 @@ from ._to_datetime import ToDatetime
 from ._to_float32 import ToFloat32
 from ._to_str import ToStr
 from ._wrap_transformer import wrap_transformer
+from .selectors import Selector
 
 __all__ = ["TableVectorizer"]
 
@@ -791,7 +792,7 @@ class TableVectorizer(TransformerMixin, BaseEstimator):
         dataframe
             The transformed input.
         """
-        self._check_specific_columns()
+        self._check_specific_columns(X)
         self._make_pipeline()
         output = self._pipeline.fit_transform(X, y=y)
         self.all_outputs_ = sbd.column_names(output)
@@ -820,11 +821,13 @@ class TableVectorizer(TransformerMixin, BaseEstimator):
         check_is_fitted(self, "transformers_")
         return self._pipeline.transform(X)
 
-    def _check_specific_columns(self):
+    def _check_specific_columns(self, df=None):
         specific_columns = {}
         for i, config in enumerate(self.specific_transformers):
             try:
                 _, cols = config
+                if isinstance(cols, Selector):
+                    cols = cols.expand(df)
                 assert isinstance(cols, Iterable) and not isinstance(cols, str)
             except (ValueError, TypeError, AssertionError):
                 raise ValueError(
