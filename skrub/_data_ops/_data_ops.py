@@ -40,6 +40,7 @@ import types
 import warnings
 
 import numpy as np
+import pandas as pd
 from sklearn.base import BaseEstimator
 
 from .. import _dataframe as sbd
@@ -1737,27 +1738,31 @@ class Concat(DataOpImpl):
     _fields = ["first", "others", "axis"]
 
     def compute(self, e, mode, environment):
-        if not sbd.is_dataframe(e.first):
+        is_df = sbd.is_dataframe(e.first) or isinstance(e.first, pd.Series)
+        is_np = isinstance(e.first, np.ndarray)
+        if not is_df and not is_np:
             raise TypeError(
-                "`concat` can only be used with dataframes. "
+                "`concat` can only be used with dataframes or numpy arrays. "
                 "`.skb.concat` was accessed on an object of type "
                 f"{e.first.__class__.__name__!r}"
             )
-        if sbd.is_dataframe(e.others):
+        if sbd.is_dataframe(e.others) or isinstance(e.others, np.ndarray):
             raise TypeError(
-                "`concat` should be passed a list of dataframes. "
-                "If you have a single dataframe, wrap it in a list: "
-                "`concat([table_1], axis=...)` not `concat(table_1, axis=...)`"
+                "`concat` should be passed a list of dataframes or numpy arrays. "
+                "If you have a single dataframe or array, wrap it in a list: "
+                f"`concat([{"table_1" if is_df else "arr_1"}], axis=...)` "
+                f"not `concat({"table_1" if is_df else "arr_1"}, axis=...)`"
             )
-        idx, non_df = next(
-            ((i, o) for i, o in enumerate(e.others) if not sbd.is_dataframe(o)),
+        idx, wrong_data = next(
+            ((i, o) for i, o in enumerate(e.others)
+             if (not sbd.is_dataframe(o) and not isinstance(o, pd.Series) and is_df) or (not sbd.is_dataframe(o) and is_np)),
             (None, None),
         )
-        if non_df is not None:
+        if wrong_data is not None:
             raise TypeError(
-                "`concat` should be passed a list of dataframes: "
-                "`table_0.skb.concat([table_1, ...], axis=...)`. "
-                f"An object of type {non_df.__class__.__name__!r} "
+                f"`concat` should be passed a list of {"dataframes" if is_df else "numpy arrays"} : "
+                f"`{"table_0" if is_df else "arr_0"}.skb.concat([{"table_1" if is_df else "arr_1"}, ...], axis=...)`. "
+                f"An object of type {wrong_data.__class__.__name__!r} "
                 f"was found at index {idx}."
             )
 
